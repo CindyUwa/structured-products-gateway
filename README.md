@@ -1,45 +1,103 @@
 # Structured Products API Gateway
 
-REST API gateway simulating integration between a bank's internal
-pricing system and external structured products distribution platforms
-— SIMON, Luma, HALO connectivity pattern.
+Enterprise-grade REST API gateway simulating connectivity
+between a bank's internal pricing system and external
+structured products distribution platforms.
 
-## What it does
-- Submits structured products to vendor platforms via REST API
-- Handles OAuth2 bearer token authentication
-- Maps internal data models to vendor payload format
-- Implements retry logic with exponential backoff
-- Enforces idempotency to prevent duplicate submissions
-- Provides pricing requests with Greeks (delta, gamma, vega)
+Mirrors the integration architecture used between
+bank systems (Murex) and platforms like SIMON, Luma, and HALO.
+
+![img.png](img.png)
+
+## Business Context
+
+Banks create structured products — Autocalls, Reverse Convertibles,
+Capital Protected Notes — for institutional clients.
+To distribute these products via platforms like SIMON or Luma,
+their internal systems must connect via authenticated,
+resilient API integrations.
+
+This gateway simulates that connectivity layer:
+authentication, payload translation, error handling,
+and duplicate prevention.
+
+## Architecture
+
+```
+Bank Internal System (Murex)
+        ↓
+  [API Gateway]
+  ├── OAuth2 Authentication (auth.py)
+  ├── Payload Mapping — internal → vendor format (gateway.py)
+  ├── Retry Logic + Exponential Backoff (gateway.py)
+  ├── Idempotency Key Validation (main.py)
+  └── Request/Response Validation (models.py)
+        ↓
+  Vendor Platform (SIMON / Luma / HALO)
+```
+
+## Features
+
+- OAuth2 bearer token authentication with automatic renewal
+- Payload mapping between internal and vendor data formats
+- Retry logic with exponential backoff (3 attempts, 1/2/4s)
+- Idempotency keys to prevent duplicate submissions
+- Pydantic validation for all structured product payloads
+- Pricing requests with Greeks (delta, gamma, vega)
+- ELK-ready structured logging
 
 ## Structured Products Covered
-- **Autocall** — early redemption if barrier breached
-- **Reverse Convertible** — high coupon, equity downside risk  
-- **Capital Protected Note** — capital protection + upside participation
+
+| Product | Description |
+|---|---|
+| Autocall | Early redemption if barrier breached on observation date |
+| Reverse Convertible | High coupon, equity downside if barrier breached |
+| Capital Protected Note | 100% capital protection + upside participation |
+
+## Tech Stack
+
+```
+Python 3.11
+FastAPI
+Pydantic v2
+Uvicorn
+httpx
+```
 
 ## Run
+
 ```bash
 pip install -r requirements.txt
 uvicorn main:app --reload
 ```
-Interactive docs → http://localhost:8000/docs
 
-## Architecture
-```
-config.py   → configuration + constants
-models.py   → Pydantic data models (internal + vendor payload)
-auth.py     → OAuth2 bearer token management
-gateway.py  → vendor integration logic (mapping, retry, idempotency)
-main.py     → FastAPI endpoints
-```
+Docs → http://localhost:8000/docs
 
-## Integration Runbook
-1. POST /products — submit new structured product
-2. GET /products/{isin} — verify submission
-3. POST /products/pricing — request fair value + Greeks
-4. GET /health — verify system status
+## Design Decisions
 
-## Context
-Built to demonstrate Capital Markets API integration patterns
-for structured products distribution — OAuth2 authentication,
-payload mapping, error handling, and idempotency implementation.
+**Why idempotency keys in headers, not body?**
+Industry standard (Stripe, SIMON, Adyen) — idempotency
+is a transport-layer concern, not business data.
+
+**Why exponential backoff?**
+Vendor platforms under load should not be flooded
+with retries. Doubling wait time reduces cascading failures.
+
+**Why separate gateway.py from main.py?**
+Separation of concerns — transport logic isolated from
+business logic. Easier to test, mock, and extend.
+
+## Screenshots
+
+![img_1.png](img_1.png)
+![img_2.png](img_2.png)
+![img_3.png](img_3.png)
+![img_4.png](img_4.png)
+![img_5.png](img_5.png)
+
+## Possible Improvements
+
+- Add real OAuth2 endpoint integration (Azure AD, Okta)
+- Persist products to PostgreSQL instead of in-memory store
+- Add Prometheus metrics endpoint for monitoring
+- Implement circuit breaker pattern for vendor downtime
